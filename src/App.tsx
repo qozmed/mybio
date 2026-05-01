@@ -38,23 +38,58 @@ const NoiseOverlay = () => <div className="noise-overlay" />;
 
 const useDeviceOrientation = () => {
   const [orientation, setOrientation] = useState({ beta: 0, gamma: 0 });
-  const isSupported = typeof window !== 'undefined' && !!window.DeviceOrientationEvent;
 
   useEffect(() => {
-    if (!isSupported) return;
+    if (typeof window === 'undefined') return;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      // beta: front-to-back tilt (-180 to 180)
-      // gamma: left-to-right tilt (-90 to 90)
       setOrientation({
         beta: e.beta || 0,
         gamma: e.gamma || 0,
       });
     };
 
-    window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [isSupported]);
+    let permissionRequested = false;
+
+    const requestAccess = async () => {
+      if (permissionRequested) return;
+      permissionRequested = true;
+      
+      try {
+        if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+          if (permissionState === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+          }
+        } else {
+          window.addEventListener('deviceorientation', handleOrientation);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    // In environments that don't require explicit permissions (non-iOS), add listener right away
+    if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+
+    // Attach to first user interaction for permission request (safari/iOS)
+    const onInteract = () => {
+      requestAccess();
+      window.removeEventListener('click', onInteract);
+      window.removeEventListener('touchstart', onInteract);
+    };
+
+    window.addEventListener('click', onInteract);
+    window.addEventListener('touchstart', onInteract);
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+      window.removeEventListener('click', onInteract);
+      window.removeEventListener('touchstart', onInteract);
+    };
+  }, []);
 
   return orientation;
 };
@@ -81,15 +116,15 @@ const MorphingBackground = () => {
   const mouseSpringY = useSpring(useTransform(mouseY, [0, window.innerHeight], [-40, 40]), { stiffness: 50, damping: 20 });
 
   return (
-    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
       <motion.div 
         style={{ 
           x: orientation.gamma !== 0 ? gyroX : mouseSpringX, 
           y: orientation.beta !== 0 ? gyroY : mouseSpringY 
         }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 blur-[100px] opacity-[0.15]"
+        className="relative w-[1200px] h-[1200px] flex items-center justify-center opacity-[0.15] blur-[120px] mix-blend-screen transform-gpu"
       >
-        <svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+        <svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" className="overflow-visible">
           <motion.path
             animate={{
               d: [
