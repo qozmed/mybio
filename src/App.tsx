@@ -234,7 +234,7 @@ export default function App() {
             <span className="text-sm md:text-base font-serif italic opacity-30 tracking-[0.3em] block mb-4">
               my name is...
             </span>
-            <h1 className="text-[100px] md:text-[160px] font-display font-extralight uppercase tracking-[-0.04em] leading-none steel-shimmer bg-clip-text">
+            <h1 className="text-[64px] sm:text-[100px] md:text-[160px] font-display font-extralight uppercase tracking-[-0.04em] leading-none steel-shimmer bg-clip-text">
               lowball
             </h1>
           </motion.div>
@@ -247,8 +247,8 @@ export default function App() {
           <div className="flex flex-col gap-6">
             <span className="text-[10px] tracking-[0.4em] uppercase opacity-30 steel-shimmer bg-clip-text">Availability</span>
             <div className="h-[1px] w-full bg-white/5" />
-            <div className="flex justify-start md:gap-32 gap-12 items-baseline">
-              <h2 className="text-3xl md:text-5xl font-display font-extralight tracking-tight w-48 md:w-64">Active Hours</h2>
+            <div className="flex flex-col sm:flex-row justify-start sm:gap-12 md:gap-32 sm:items-baseline">
+              <h2 className="text-3xl md:text-5xl font-display font-extralight tracking-tight mb-2 sm:mb-0 sm:w-48 md:w-64">Active Hours</h2>
               <span className="text-xl font-mono steel-shimmer bg-clip-text">09:00 — 22:00</span>
             </div>
           </div>
@@ -256,9 +256,9 @@ export default function App() {
           <div className="flex flex-col gap-6">
             <span className="text-[10px] tracking-[0.4em] uppercase opacity-30 steel-shimmer bg-clip-text">Location</span>
             <div className="h-[1px] w-full bg-white/5" />
-            <div className="flex justify-start md:gap-32 gap-12 items-baseline">
-              <h2 className="text-3xl md:text-5xl font-display font-extralight tracking-tight w-48 md:w-64">Current Time</h2>
-              <span className="text-xl font-mono steel-shimmer bg-clip-text">
+            <div className="flex flex-col sm:flex-row justify-start sm:gap-12 md:gap-32 sm:items-baseline">
+              <h2 className="text-3xl md:text-5xl font-display font-extralight tracking-tight mb-2 sm:mb-0 sm:w-48 md:w-64">Current Time</h2>
+              <span className="text-lg sm:text-xl font-mono steel-shimmer bg-clip-text">
                 {new Date(time.getTime() + 3 * 3600000).toLocaleTimeString([], { hour12: false, timeZone: 'UTC' })} <span className="text-xs ml-2 opacity-50">UTC +3</span>
               </span>
             </div>
@@ -270,8 +270,8 @@ export default function App() {
       <Section>
         <div className="w-full max-w-3xl space-y-12">
           <span className="text-[10px] tracking-[0.4em] uppercase opacity-30 block text-center mb-12 steel-shimmer bg-clip-text">Selected Index</span>
-          <div className="flex flex-col gap-px bg-white/5 border-y border-white/5">
-            {links.map((link) => {
+          <div className="flex flex-col w-full border-t border-white/10 mt-8">
+            {links.map((link, index) => {
               const isComingSoon = link.title === 'Coming soon...';
               return (
                 <a 
@@ -279,20 +279,27 @@ export default function App() {
                   href={isComingSoon ? undefined : link.url}
                   target={isComingSoon ? undefined : "_blank"}
                   rel={isComingSoon ? undefined : "noopener noreferrer"}
-                  className={`group flex items-center justify-between py-12 px-8 transition-colors ${isComingSoon ? 'cursor-default opacity-40' : 'hover:bg-white/[0.02]'}`}
+                  className={`group flex flex-col sm:flex-row sm:items-center justify-between py-8 sm:py-10 border-b border-white/10 transition-all duration-500 ${isComingSoon ? 'cursor-default opacity-30 w-full' : 'w-full opacity-60 hover:opacity-100 hover:pl-4 sm:hover:pl-6'}`}
                   onClick={(e) => isComingSoon && e.preventDefault()}
                 >
-                  <div className="flex-1 pr-12">
-                    <h3 className={`text-3xl md:text-4xl font-display font-extralight tracking-tight transition-all duration-700 ${!isComingSoon ? 'group-hover:translate-x-2 group-hover:steel-shimmer group-hover:bg-clip-text' : ''}`}>
+                  <div className="flex items-center gap-6 sm:gap-10 flex-1">
+                    <span className="text-[10px] tracking-[0.3em] font-mono opacity-30 hidden sm:block">0{index + 1}</span>
+                    <h3 className="text-2xl sm:text-3xl md:text-4xl font-display font-extralight tracking-tight w-full">
                       {link.title}
                     </h3>
-                    <span className={`text-[10px] uppercase tracking-widest text-white/30 mt-2 block transition-opacity ${!isComingSoon ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-8 mt-4 sm:mt-0 w-full sm:w-auto">
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-white/40 hidden sm:block">
                       {link.description}
                     </span>
+                    <div className={`transition-transform duration-500 ${!isComingSoon ? 'group-hover:translate-x-1 group-hover:-translate-y-1' : ''}`}>
+                      <link.icon size={18} strokeWidth={1} className={isComingSoon ? 'opacity-40' : 'opacity-60 group-hover:opacity-100'} />
+                    </div>
                   </div>
-                  <div className={`transition-all duration-700 ${!isComingSoon ? 'opacity-0 group-hover:opacity-100' : 'opacity-20'}`}>
-                    <link.icon size={20} strokeWidth={1} />
-                  </div>
+                  {/* Mobile description */}
+                  <span className="text-[9px] uppercase tracking-[0.2em] text-white/40 block sm:hidden mt-2">
+                    {link.description}
+                  </span>
                 </a>
               );
             })}
@@ -316,12 +323,12 @@ export default function App() {
 
       {/* 5. Contact */}
       <Section>
-        <div className="w-full max-w-4xl flex flex-col items-center gap-24">
-          <h2 className="text-6xl md:text-9xl font-display font-extralight tracking-tighter text-center steel-shimmer bg-clip-text py-4">
+        <div className="w-full max-w-4xl flex flex-col items-center gap-16 md:gap-24">
+          <h2 className="text-4xl sm:text-6xl md:text-9xl font-display font-extralight tracking-tighter text-center steel-shimmer bg-clip-text py-4">
             CONTACT ME.
           </h2>
           
-          <div className="flex flex-wrap justify-center gap-12 md:gap-24 opacity-40 focus-within:opacity-100 hover:opacity-100 transition-opacity">
+          <div className="flex flex-wrap justify-center gap-10 md:gap-24 opacity-40 focus-within:opacity-100 hover:opacity-100 transition-opacity">
             <button 
               onClick={() => handleCopy('lowball@list.ru', 'EMAIL')}
               className="flex flex-col items-center gap-4 group cursor-pointer"
