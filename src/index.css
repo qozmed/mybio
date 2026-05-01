@@ -10,7 +10,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    scroll-snap-type: y mandatory;
+    scroll-snap-type: y proximity;
   }
   body {
     @apply bg-[#000000] text-[#E5E5E5] antialiased overflow-x-hidden cursor-crosshair;

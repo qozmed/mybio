@@ -37,54 +37,46 @@ const CustomIcon = ({ icon: Icon }: { icon: React.ElementType }) => (
 const NoiseOverlay = () => <div className="noise-overlay" />;
 
 const useDeviceOrientation = () => {
-  const [orientation, setOrientation] = useState({ beta: 0, gamma: 0 });
-  const [hasGyro, setHasGyro] = useState(false);
+  const betaAndGamma = useRef({ beta: 0, gamma: 0 });
+  const hasGyro = useMotionValue(0); // 0 or 1
+  const gyroX = useMotionValue(0);
+  const gyroY = useMotionValue(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (e.beta === null || e.gamma === null) return;
-      setHasGyro(true);
-      setOrientation({
-        beta: e.beta || 0,
-        gamma: e.gamma || 0,
-      });
-    };
-
-    let permissionRequested = false;
-
-    const requestAccess = () => {
-      if (permissionRequested) return;
-      permissionRequested = true;
+      const beta = e.beta;
+      const gamma = e.gamma;
       
-      try {
-        if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-          (DeviceOrientationEvent as any).requestPermission()
-            .then((permissionState: string) => {
-              if (permissionState === 'granted') {
-                window.addEventListener('deviceorientation', handleOrientation);
-              }
-            })
-            .catch(console.error);
-        } else {
-          window.addEventListener('deviceorientation', handleOrientation);
-        }
-      } catch (error) {
-        console.error(error);
+      if (beta !== null && gamma !== null) {
+        hasGyro.set(1);
+        gyroX.set(gamma);
+        gyroY.set(beta);
       }
     };
 
-    // In environments that don't require explicit permissions (non-iOS), add listener right away
-    if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
-      window.addEventListener('deviceorientation', handleOrientation);
+    const requestAccess = () => {
+      if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        (DeviceOrientationEvent as any).requestPermission()
+          .then((permissionState: string) => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, false);
+            }
+          })
+          .catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation, false);
+      }
+    };
+
+    // On non-iOS devices, we can add it directly first to see if it works without interaction
+    if (typeof (DeviceOrientationEvent as any) === 'undefined' || typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
+      window.addEventListener('deviceorientation', handleOrientation, false);
     }
 
-    // Attach to first user interaction for permission request (safari/iOS)
     const onInteract = () => {
       requestAccess();
-      window.removeEventListener('click', onInteract);
-      window.removeEventListener('touchstart', onInteract);
     };
 
     window.addEventListener('click', onInteract, { once: true });
@@ -95,15 +87,15 @@ const useDeviceOrientation = () => {
       window.removeEventListener('click', onInteract);
       window.removeEventListener('touchstart', onInteract);
     };
-  }, []);
+  }, [hasGyro, gyroX, gyroY]);
 
-  return { orientation, hasGyro };
+  return { gyroX, gyroY, hasGyro };
 };
 
 const MorphingBackground = () => {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const { orientation, hasGyro } = useDeviceOrientation();
+  const { gyroX, gyroY, hasGyro } = useDeviceOrientation();
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -115,51 +107,54 @@ const MorphingBackground = () => {
   }, [mouseX, mouseY]);
 
   // Combine Mouse and Gyro (Gyro scaled to feel similar to mouse offsets)
-  const gyroX = useSpring(orientation.gamma * 2, { stiffness: 50, damping: 20 });
-  const gyroY = useSpring(orientation.beta * 2, { stiffness: 50, damping: 20 });
+  // We use useTransform to scale the gyro motion values, then pass to useSpring
+  const gyroScaledX = useTransform(gyroX, (v) => v * 2);
+  const gyroScaledY = useTransform(gyroY, (v) => v * 2);
+  const springGyroX = useSpring(gyroScaledX, { stiffness: 50, damping: 20 });
+  const springGyroY = useSpring(gyroScaledY, { stiffness: 50, damping: 20 });
   
   const mouseSpringX = useSpring(useTransform(mouseX, [0, window.innerWidth], [-40, 40]), { stiffness: 50, damping: 20 });
   const mouseSpringY = useSpring(useTransform(mouseY, [0, window.innerHeight], [-40, 40]), { stiffness: 50, damping: 20 });
+
+  const finalX = useTransform(() => hasGyro.get() ? springGyroX.get() : mouseSpringX.get());
+  const finalY = useTransform(() => hasGyro.get() ? springGyroY.get() : mouseSpringY.get());
 
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
       <motion.div 
         style={{ 
-          x: hasGyro ? gyroX : mouseSpringX, 
-          y: hasGyro ? gyroY : mouseSpringY 
+          x: finalX, 
+          y: finalY,
+          willChange: 'transform'
         }}
         className="relative w-[150vw] h-[150vw] sm:w-[1200px] sm:h-[1200px] flex items-center justify-center opacity-[0.12] mix-blend-screen transform-gpu"
       >
-        <motion.div
-           animate={{
-             scale: [1, 1.1, 1],
-             rotate: [0, 360]
-           }}
-           transition={{
-             duration: 25,
-             repeat: Infinity,
-             ease: "linear"
-           }}
-           className="absolute w-[60%] h-[80%] rounded-full transform-gpu"
-           style={{
-             background: 'radial-gradient(circle closest-side, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%)',
-           }}
-        />
-        <motion.div
-           animate={{
-             scale: [1, 1.25, 1],
-             rotate: [360, 0]
-           }}
-           transition={{
-             duration: 30,
-             repeat: Infinity,
-             ease: "linear"
-           }}
-           className="absolute w-[80%] h-[60%] rounded-full transform-gpu"
-           style={{
-             background: 'radial-gradient(circle closest-side, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%)',
-           }}
-        />
+        <svg width="100%" height="100%" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="absolute overflow-visible">
+          <defs>
+            <radialGradient id="grad1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <motion.g
+            animate={{ rotate: 360 }}
+            transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+            style={{ transformOrigin: '100px 100px' }}
+          >
+            <motion.ellipse
+              cx="90" cy="100" rx="70" ry="90" fill="url(#grad1)"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+              style={{ transformOrigin: '90px 100px' }}
+            />
+            <motion.ellipse
+              cx="110" cy="100" rx="90" ry="70" fill="url(#grad1)"
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              style={{ transformOrigin: '110px 100px' }}
+            />
+          </motion.g>
+        </svg>
       </motion.div>
     </div>
   );
@@ -169,22 +164,28 @@ const Magnetic = ({ children }: { children: React.ReactNode }) => {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  const { orientation, hasGyro } = useDeviceOrientation();
+  const { gyroX, gyroY, hasGyro } = useDeviceOrientation();
   
   const springX = useSpring(x, { stiffness: 100, damping: 15 });
   const springY = useSpring(y, { stiffness: 100, damping: 15 });
 
   useEffect(() => {
-    // If gyro is active (beta/gamma not zero), override with gyro data
-    if (hasGyro) {
-      x.set(orientation.gamma * 1.5);
-      y.set(orientation.beta * 1.5);
-    }
-  }, [orientation, hasGyro, x, y]);
+    // Synchronize gyro to local x/y if gyro is active
+    const unsubscribeX = gyroX.on("change", (v) => {
+      if (hasGyro.get()) x.set(v * 1.5);
+    });
+    const unsubscribeY = gyroY.on("change", (v) => {
+      if (hasGyro.get()) y.set(v * 1.5);
+    });
+    return () => {
+      unsubscribeX();
+      unsubscribeY();
+    };
+  }, [gyroX, gyroY, hasGyro, x, y]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    // Only use mouse if gyro isn't doing much (likely desktop)
-    if (!hasGyro) {
+    // Only use mouse if gyro isn't active
+    if (!hasGyro.get()) {
       if (!ref.current) return;
       const { left, top, width, height } = ref.current.getBoundingClientRect();
       const centerX = left + width / 2;
@@ -203,7 +204,7 @@ const Magnetic = ({ children }: { children: React.ReactNode }) => {
   };
 
   const handleMouseLeave = () => {
-    if (!hasGyro) {
+    if (!hasGyro.get()) {
       x.set(0);
       y.set(0);
     }
@@ -228,26 +229,26 @@ const Section = ({ children, className = "" }: { children: React.ReactNode, clas
     offset: ["start end", "end start"]
   });
 
-  const opacity = useTransform(scrollYProgress, [0, 0.4, 0.6, 1], [0, 1, 1, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.95, 1, 0.95]);
+  const opacity = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0.95, 1, 1, 0.95]);
 
   return (
-    <motion.section 
+    <section 
       ref={ref}
-      style={{ opacity, scale }}
-      className={`relative min-h-screen flex flex-col justify-center items-center px-8 md:px-24 py-32 snap-center snap-always ${className}`}
+      className={`relative min-h-[100svh] w-full snap-center snap-always flex flex-col justify-center items-center px-8 md:px-24 py-32 overflow-hidden ${className}`}
     >
-      <Magnetic>
-        {children}
-      </Magnetic>
-    </motion.section>
+      <motion.div style={{ opacity, scale, willChange: 'opacity, transform' }} className="w-full flex-1 flex flex-col items-center justify-center">
+        <Magnetic>
+          {children}
+        </Magnetic>
+      </motion.div>
+    </section>
   );
 };
 
 // --- Main App ---
 
 export default function App() {
-  const containerRef = useRef(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
@@ -276,7 +277,7 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative bg-[#000] selection:bg-white selection:text-black min-h-[500vh]">
+    <div className="relative bg-[#000] selection:bg-white selection:text-black min-h-screen">
       <NoiseOverlay />
       <MorphingBackground />
 
