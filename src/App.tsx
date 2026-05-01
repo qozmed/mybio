@@ -37,7 +37,7 @@ const CustomIcon = ({ icon: Icon }: { icon: React.ElementType }) => (
 const NoiseOverlay = () => <div className="noise-overlay" />;
 
 const useDeviceOrientation = () => {
-  const betaAndGamma = useRef({ beta: 0, gamma: 0 });
+  const initialOrientation = useRef<{ beta: number; gamma: number } | null>(null);
   const hasGyro = useMotionValue(0); // 0 or 1
   const gyroX = useMotionValue(0);
   const gyroY = useMotionValue(0);
@@ -50,9 +50,31 @@ const useDeviceOrientation = () => {
       const gamma = e.gamma;
       
       if (beta !== null && gamma !== null) {
+        if (!initialOrientation.current) {
+          initialOrientation.current = { beta, gamma };
+        }
         hasGyro.set(1);
-        gyroX.set(gamma);
-        gyroY.set(beta);
+        // Calculate difference from initial, roughly clamping or mapping to smooth offsets
+        let diffBeta = beta - initialOrientation.current.beta;
+        let diffGamma = gamma - initialOrientation.current.gamma;
+
+        // Wrap around logic if needed (e.g. crossing 180/-180)
+        if (diffBeta > 180) diffBeta -= 360;
+        if (diffBeta < -180) diffBeta += 360;
+        if (diffGamma > 90) diffGamma -= 180;
+        if (diffGamma < -90) diffGamma += 180;
+
+        // Clamp the difference to avoid massive flips
+        diffBeta = Math.max(-45, Math.min(45, diffBeta));
+        diffGamma = Math.max(-45, Math.min(45, diffGamma));
+
+        // Threshold micro-jitters (deadzone)
+        if (Math.abs(diffBeta - gyroY.get()) > 0.05) {
+          gyroY.set(diffBeta);
+        }
+        if (Math.abs(diffGamma - gyroX.get()) > 0.05) {
+          gyroX.set(diffGamma);
+        }
       }
     };
 
@@ -108,10 +130,11 @@ const MorphingBackground = () => {
 
   // Combine Mouse and Gyro (Gyro scaled to feel similar to mouse offsets)
   // We use useTransform to scale the gyro motion values, then pass to useSpring
-  const gyroScaledX = useTransform(gyroX, (v) => v * 2);
-  const gyroScaledY = useTransform(gyroY, (v) => v * 2);
-  const springGyroX = useSpring(gyroScaledX, { stiffness: 50, damping: 20 });
-  const springGyroY = useSpring(gyroScaledY, { stiffness: 50, damping: 20 });
+  const gyroScaledX = useTransform(gyroX, (v) => v * 3);
+  const gyroScaledY = useTransform(gyroY, (v) => v * 3);
+  // Using lower stiffness and low mass for physical smoothing without being extremely sluggish
+  const springGyroX = useSpring(gyroScaledX, { stiffness: 40, damping: 20, mass: 0.5 });
+  const springGyroY = useSpring(gyroScaledY, { stiffness: 40, damping: 20, mass: 0.5 });
   
   const mouseSpringX = useSpring(useTransform(mouseX, [0, window.innerWidth], [-40, 40]), { stiffness: 50, damping: 20 });
   const mouseSpringY = useSpring(useTransform(mouseY, [0, window.innerHeight], [-40, 40]), { stiffness: 50, damping: 20 });
@@ -215,7 +238,7 @@ const Magnetic = ({ children }: { children: React.ReactNode }) => {
       ref={ref}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ x: springX, y: springY }}
+      style={{ x: springX, y: springY, willChange: 'transform' }}
     >
       {children}
     </motion.div>
@@ -229,13 +252,13 @@ const Section = ({ children, className = "" }: { children: React.ReactNode, clas
     offset: ["start end", "end start"]
   });
 
-  const opacity = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0.95, 1, 1, 0.95]);
+  const opacity = useTransform(scrollYProgress, [0, 0.35, 0.5, 0.65, 1], [0, 0, 1, 0, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.35, 0.5, 0.65, 1], [0.85, 0.85, 1, 0.85, 0.85]);
 
   return (
     <section 
       ref={ref}
-      className={`relative min-h-[100svh] w-full snap-center snap-always flex flex-col justify-center items-center px-8 md:px-24 py-32 overflow-hidden ${className}`}
+      className={`relative min-h-[100svh] w-full snap-center snap-always flex flex-col justify-center items-center px-8 md:px-24 py-32 ${className}`}
     >
       <motion.div style={{ opacity, scale, willChange: 'opacity, transform' }} className="w-full flex-1 flex flex-col items-center justify-center">
         <Magnetic>
