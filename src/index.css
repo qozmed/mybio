@@ -10,10 +10,9 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    scroll-snap-type: y mandatory;
   }
   body {
-    @apply bg-[#000000] text-[#E5E5E5] antialiased overflow-x-hidden cursor-crosshair;
+    @apply bg-[#000000] text-[#E5E5E5] antialiased overflow-hidden cursor-crosshair;
     font-feature-settings: "ss01", "ss02", "cv01", "cv11";
   }
 }

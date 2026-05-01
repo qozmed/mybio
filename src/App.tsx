@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { motion, useScroll, useTransform, useSpring, useMotionValue } from 'motion/react';
 import { 
   Github, 
@@ -17,6 +17,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
+
+export const ScrollContext = createContext<React.RefObject<HTMLDivElement> | null>(null);
 
 // --- Types ---
 interface LinkItem {
@@ -247,18 +249,20 @@ const Magnetic = ({ children }: { children: React.ReactNode }) => {
 
 const Section = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
   const ref = useRef(null);
+  const containerRef = useContext(ScrollContext);
   const { scrollYProgress } = useScroll({
     target: ref,
+    container: containerRef === null ? undefined : containerRef,
     offset: ["start end", "end start"]
   });
 
-  const opacity = useTransform(scrollYProgress, [0, 0.35, 0.5, 0.65, 1], [0, 0, 1, 0, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.35, 0.5, 0.65, 1], [0.85, 0.85, 1, 0.85, 0.85]);
+  const opacity = useTransform(scrollYProgress, [0, 0.25, 0.5, 0.75, 1], [0, 0.5, 1, 0.5, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.25, 0.5, 0.75, 1], [0.85, 0.95, 1, 0.95, 0.85]);
 
   return (
     <section 
       ref={ref}
-      className={`relative min-h-[100svh] w-full snap-center snap-always flex flex-col justify-center items-center px-8 md:px-24 py-32 ${className}`}
+      className={`relative h-[100dvh] w-full shrink-0 snap-center snap-always flex flex-col justify-center items-center px-8 md:px-24 py-32 overflow-hidden ${className}`}
     >
       <motion.div style={{ opacity, scale, willChange: 'opacity, transform' }} className="w-full flex-1 flex flex-col items-center justify-center">
         <Magnetic>
@@ -272,6 +276,7 @@ const Section = ({ children, className = "" }: { children: React.ReactNode, clas
 // --- Main App ---
 
 export default function App() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
@@ -300,11 +305,15 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative bg-[#000] selection:bg-white selection:text-black min-h-screen">
-      <NoiseOverlay />
-      <MorphingBackground />
+    <ScrollContext.Provider value={containerRef}>
+      <div 
+        ref={containerRef}
+        className="fixed inset-0 w-full h-[100dvh] overflow-y-auto overflow-x-hidden snap-y snap-mandatory bg-[#000] selection:bg-white selection:text-black"
+      >
+        <NoiseOverlay />
+        <MorphingBackground />
 
-      {/* 1. Hero Section */}
+        {/* 1. Hero Section */}
       <Section>
         <div className="flex flex-col items-center">
           <motion.div
@@ -458,6 +467,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </ScrollContext.Provider>
   );
 }
